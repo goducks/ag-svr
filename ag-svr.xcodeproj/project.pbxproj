@@ -7,8 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0103CD8F1A25766B00A7007F /* mongoose.c in Sources */ = {isa = PBXBuildFile; fileRef = 0103CD8E1A25766B00A7007F /* mongoose.c */; };
 		012B6B1E1A23E76A00A18A80 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 012B6B1D1A23E76A00A18A80 /* main.cpp */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		01A038521A29251A00B09D30 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 01A0384E1A29251A00B09D30 /* ag-client.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 01A038441A29251A00B09D30;
+			remoteInfo = "ag-client";
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		012B6B181A23E76A00A18A80 /* CopyFiles */ = {
@@ -23,8 +34,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0103CD8D1A25766000A7007F /* mongoose.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = mongoose.h; path = "mg-web/mongoose.h"; sourceTree = "<group>"; };
+		0103CD8E1A25766B00A7007F /* mongoose.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = mongoose.c; path = "mg-web/mongoose.c"; sourceTree = "<group>"; };
+		010EFD351A24EEA60075E24D /* ScopeTimer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScopeTimer.h; sourceTree = "<group>"; };
 		012B6B1A1A23E76A00A18A80 /* ag-svr */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "ag-svr"; sourceTree = BUILT_PRODUCTS_DIR; };
 		012B6B1D1A23E76A00A18A80 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		01A0384E1A29251A00B09D30 /* ag-client.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "ag-client.xcodeproj"; path = "ag-client/ag-client/ag-client.xcodeproj"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,9 +53,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0103CD901A25767C00A7007F /* mg-web */ = {
+			isa = PBXGroup;
+			children = (
+				0103CD8D1A25766000A7007F /* mongoose.h */,
+				0103CD8E1A25766B00A7007F /* mongoose.c */,
+			);
+			name = "mg-web";
+			sourceTree = "<group>";
+		};
 		012B6B111A23E76A00A18A80 = {
 			isa = PBXGroup;
 			children = (
+				01A0384E1A29251A00B09D30 /* ag-client.xcodeproj */,
 				012B6B1C1A23E76A00A18A80 /* ag-svr */,
 				012B6B1B1A23E76A00A18A80 /* Products */,
 			);
@@ -57,9 +82,19 @@
 		012B6B1C1A23E76A00A18A80 /* ag-svr */ = {
 			isa = PBXGroup;
 			children = (
+				0103CD901A25767C00A7007F /* mg-web */,
+				010EFD351A24EEA60075E24D /* ScopeTimer.h */,
 				012B6B1D1A23E76A00A18A80 /* main.cpp */,
 			);
 			path = "ag-svr";
+			sourceTree = "<group>";
+		};
+		01A0384F1A29251A00B09D30 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				01A038531A29251A00B09D30 /* ag-client */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -106,6 +141,12 @@
 			mainGroup = 012B6B111A23E76A00A18A80;
 			productRefGroup = 012B6B1B1A23E76A00A18A80 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 01A0384F1A29251A00B09D30 /* Products */;
+					ProjectRef = 01A0384E1A29251A00B09D30 /* ag-client.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				012B6B191A23E76A00A18A80 /* ag-svr */,
@@ -113,11 +154,22 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXReferenceProxy section */
+		01A038531A29251A00B09D30 /* ag-client */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = "ag-client";
+			remoteRef = 01A038521A29251A00B09D30 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
 /* Begin PBXSourcesBuildPhase section */
 		012B6B161A23E76A00A18A80 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0103CD8F1A25766B00A7007F /* mongoose.c in Sources */,
 				012B6B1E1A23E76A00A18A80 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -202,6 +254,13 @@
 		012B6B221A23E76A00A18A80 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = "-lzmq";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -209,6 +268,13 @@
 		012B6B231A23E76A00A18A80 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
+				OTHER_LDFLAGS = "-lzmq";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -232,6 +298,7 @@
 				012B6B231A23E76A00A18A80 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
