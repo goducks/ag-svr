@@ -8,10 +8,12 @@
 
 #include <assert.h>
 #include <iostream>
-#include <pthread.h>
+#include <mutex>
 #include <signal.h>
-#include <unistd.h>
+#include <thread>
+#include <vector>
 #include <zmq.hpp>
+#include <zhelpers.hpp>
 
 #include "ScopeTimer.h"
 #include "mg-web/mongoose.h"
@@ -46,7 +48,7 @@ int fib(int n)
 void* RunThread(void* pVoid)
 {
     assert(pVoid);
-    pthread_mutex_t* pMutex = (pthread_mutex_t*)pVoid;
+    std::mutex* pMutex = (std::mutex*)pVoid;
 
     // setup zeromq
     zmq::context_t context(1);
@@ -57,8 +59,8 @@ void* RunThread(void* pVoid)
     {
         Timing::HRTimeStamp start = Timing::hrNow();
         const float hzUS = (1.0f / (float)threadHz) * 1000.0f * 1000.0f;
-
-        // fib(10);
+        
+        // idle work
 
         // zmq work
         {
@@ -76,9 +78,9 @@ void* RunThread(void* pVoid)
             {
                 buffer[0] = '\0';
             }
-            pthread_mutex_lock(pMutex);
+            pMutex->lock();
             std::cout << "Received \"" << buffer << "\"" << std::endl;
-            pthread_mutex_unlock(pMutex);
+            pMutex->unlock();
 
             //  Send reply back to client
             zmq::message_t reply(len);
@@ -90,49 +92,37 @@ void* RunThread(void* pVoid)
         if (elapsed < hzUS)
         {
             int sleepAmt = static_cast<int>(hzUS - elapsed);
-            pthread_mutex_lock(pMutex);
+            pMutex->lock();
             std::cout << "RunThread sleeping: " << sleepAmt << "us\n";
-            pthread_mutex_unlock(pMutex);
+            pMutex->unlock();
             usleep(sleepAmt);
         }
         else
         {
             char ctimestr[26];
-            pthread_mutex_lock(pMutex);
+            pMutex->lock();
             std::cout << "RunThread: " << Timing::sysNow(ctimestr);
-            pthread_mutex_unlock(pMutex);
+            pMutex->unlock();
         }
     }
     
-    pthread_mutex_lock(pMutex);
+    pMutex->lock();
     std::cout << "RunThread: exiting\n";
-    pthread_mutex_unlock(pMutex);
+    pMutex->unlock();
 
     return NULL;
 }
  
-void LaunchThread(pthread_mutex_t* pMutex)
+void LaunchThread(std::mutex* pMutex)
 {
-    pthread_attr_t attr;
-    pthread_t posixThreadID;
+    std::thread thread(RunThread, pMutex);
     
-    int returnVal = pthread_attr_init(&attr);
-    assert(!returnVal);
-    returnVal = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    assert(!returnVal);
+    // spin it off
+    thread.detach();
  
-    int threadError = pthread_create(&posixThreadID, &attr, &RunThread, pMutex);
- 
-    pthread_mutex_lock(pMutex);
+    pMutex->lock();
     std::cout << "Exiting LaunchThread\n";
-    pthread_mutex_unlock(pMutex);
-
-    returnVal = pthread_attr_destroy(&attr);
-    assert(!returnVal);
-    if (threadError != 0)
-    {
-         // Report an error.
-    }
+    pMutex->unlock();
 }
 
 void send_reply(struct mg_connection *conn)
@@ -185,11 +175,113 @@ void signal_handler(int sig_num)
     received_signal = sig_num;
 }
 
+// FOR ASYNCHRONOUS CLIENT - SERVER
+
+//  Each worker task works on one request at a time and sends a random number
+//  of replies back, with random delays between replies:
+class server_worker
+{
+public:
+    server_worker(zmq::context_t &ctx, int sock_type) :
+        ctx_(ctx)
+        , worker_(ctx_, sock_type)
+    {
+        /* */
+    }
+
+    void work()
+    {
+        worker_.connect("inproc://backend");
+
+        try
+        {
+            while (true)
+            {
+                zmq::message_t identity;
+                zmq::message_t msg;
+                zmq::message_t copied_id;
+                zmq::message_t copied_msg;
+                worker_.recv(&identity);
+                worker_.recv(&msg);
+
+                int replies = within(5);
+                for (int reply = 0; reply < replies; ++reply)
+                {
+                    s_sleep(within(1000) + 1);
+                    copied_id.copy(&identity);
+                    copied_msg.copy(&msg);
+                    worker_.send(copied_id, ZMQ_SNDMORE);
+                    worker_.send(copied_msg);
+                }
+            }
+        }
+        catch (std::exception &e) {}
+    }
+
+private:
+    zmq::context_t& ctx_;
+    zmq::socket_t worker_;
+};
+
+//  This is our server task.
+//  It uses the multithreaded server model to deal requests out to a pool
+//  of workers and route replies back to clients. One worker can handle
+//  one request at a time but one client can talk to multiple workers at
+//  once.
+
+class server_task
+{
+public:
+    server_task() :
+        ctx_(1)
+        , frontend_(ctx_, ZMQ_ROUTER)
+        , backend_(ctx_, ZMQ_DEALER)
+    {
+        /* */
+    }
+
+    enum { kMaxThread = 5 };
+
+    void run()
+    {
+        frontend_.bind("tcp://*:5570");
+        backend_.bind("inproc://backend");
+
+        std::vector<server_worker *> worker;
+        std::vector<std::thread *> worker_thread;
+        for (int i = 0; i < kMaxThread; ++i)
+        {
+            worker.push_back(new server_worker(ctx_, ZMQ_DEALER));
+
+            worker_thread.push_back(new std::thread(std::bind(&server_worker::work, worker[i])));
+            worker_thread[i]->detach();
+        }
+
+
+        try
+        {
+            zmq::proxy(frontend_, backend_, nullptr);
+        }
+        catch (std::exception &e) {}
+
+        for (int i = 0; i < kMaxThread; ++i)
+        {
+            delete worker[i];
+            delete worker_thread[i];
+        }
+    }
+
+private:
+    zmq::context_t ctx_;
+    zmq::socket_t frontend_;
+    zmq::socket_t backend_;
+};
+
 }; // namespace unnamed
 
 int main(int argc, const char * argv[])
 {
-    pthread_mutex_t mutex;
+    std::mutex mutex;
     Timing::HRTimeStamp start;
 
     // setup signal handlers
@@ -201,7 +293,6 @@ int main(int argc, const char * argv[])
     mg_set_option(webserver, "listening_port", "8080");
     
     // create thread stuff
-    pthread_mutex_init(&mutex, NULL);
     LaunchThread(&mutex);
     
     while (received_signal == 0)
@@ -218,21 +309,19 @@ int main(int argc, const char * argv[])
         if (elapsed < hzUS)
         {
             int sleepAmt = static_cast<int>(hzUS - elapsed);
-            pthread_mutex_lock(&mutex);
+            mutex.lock();
             std::cout << "MainThread sleeping: " << sleepAmt << "us\n";
-            pthread_mutex_unlock(&mutex);
+            mutex.unlock();
             usleep(sleepAmt);
         }
         else
         {
             char ctimestr[26];
-            pthread_mutex_lock(&mutex);
+            mutex.lock();
             std::cout << "MainThread : " << Timing::sysNow(ctimestr);
-            pthread_mutex_unlock(&mutex);
+            mutex.unlock();
         }
     }
-    
-    pthread_mutex_destroy(&mutex);
     
     // destroy mongoose
     mg_destroy_server(&webserver);
