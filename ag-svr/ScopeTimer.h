@@ -36,27 +36,27 @@ public:
     {
         HRTimeStamp stop = HRClockType::now();
         const float elapsed =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(stop - m_start).count();
-        std::cout << elapsed << "ns" << std::endl;
+            std::chrono::duration_cast<std::chrono::milliseconds>(stop - m_start).count();
+        std::cout << elapsed << "ms" << std::endl;
     }
     
 private:
     const HRTimeStamp m_start;
 };
 
-HRTimeStamp hrNow()
+inline HRTimeStamp hrNow()
 {
     return HRClockType::now();
 }
 
-float elapsedinUS(HRTimeStamp start)
+inline float elapsedinMS(HRTimeStamp start)
 {
     float elapsed =
-        std::chrono::duration_cast<std::chrono::microseconds>(hrNow() - start).count();
+        std::chrono::duration_cast<std::chrono::milliseconds>(hrNow() - start).count();
     return elapsed;
 }
 
-char* sysNow(char* ctimestr)
+inline char* sysNow(char* ctimestr)
 {
     SysTimeStamp now = SysClockType::now();
     std::time_t tt = SysClockType::to_time_t (now);

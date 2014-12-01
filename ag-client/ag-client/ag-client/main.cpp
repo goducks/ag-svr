@@ -59,7 +59,7 @@ private:
 
 int main(int argc, const char * argv[])
 {
-#if 0
+#if 1
     srandom((unsigned int)time(NULL));
     client_task ctask;
     ctask.start();

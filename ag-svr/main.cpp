@@ -45,86 +45,6 @@ int fib(int n)
     return fib(n - 1) + fib(n - 2);
 }
 
-void* RunThread(void* pVoid)
-{
-    assert(pVoid);
-    std::mutex* pMutex = (std::mutex*)pVoid;
-
-    // setup zeromq
-    zmq::context_t context(1);
-    zmq::socket_t socket(context, ZMQ_REP);
-    socket.bind("tcp://*:5555");
- 
-    while (received_signal == 0)
-    {
-        Timing::HRTimeStamp start = Timing::hrNow();
-        const float hzUS = (1.0f / (float)threadHz) * 1000.0f * 1000.0f;
-        
-        // idle work
-
-        // zmq work
-        {
-            zmq::message_t request;
-            char buffer[1024];
-            int len = 0;
-            //  Wait for next request from client
-            if (socket.recv(&request))
-            {
-                len = std::min(1023, (int)request.size());
-                memcpy(buffer, request.data(), len);
-                buffer[len] = '\0';
-            }
-            else
-            {
-                buffer[0] = '\0';
-            }
-            pMutex->lock();
-            std::cout << "Received \"" << buffer << "\"" << std::endl;
-            pMutex->unlock();
-
-            //  Send reply back to client
-            zmq::message_t reply(len);
-            memcpy((void *)reply.data(), buffer, len);
-            socket.send(reply);
-        }
-
-        float elapsed = Timing::elapsedinUS(start);
-        if (elapsed < hzUS)
-        {
-            int sleepAmt = static_cast<int>(hzUS - elapsed);
-            pMutex->lock();
-            std::cout << "RunThread sleeping: " << sleepAmt << "us\n";
-            pMutex->unlock();
-            usleep(sleepAmt);
-        }
-        else
-        {
-            char ctimestr[26];
-            pMutex->lock();
-            std::cout << "RunThread: " << Timing::sysNow(ctimestr);
-            pMutex->unlock();
-        }
-    }
-    
-    pMutex->lock();
-    std::cout << "RunThread: exiting\n";
-    pMutex->unlock();
-
-    return NULL;
-}
- 
-void LaunchThread(std::mutex* pMutex)
-{
-    std::thread thread(RunThread, pMutex);
-    
-    // spin it off
-    thread.detach();
- 
-    pMutex->lock();
-    std::cout << "Exiting LaunchThread\n";
-    pMutex->unlock();
-}
-
 void send_reply(struct mg_connection *conn)
 {
     char var1[500], var2[500];
@@ -277,10 +197,97 @@ private:
     zmq::socket_t backend_;
 };
 
+
+void* RunThread(void* pVoid)
+{
+    assert(pVoid);
+    std::mutex* pMutex = (std::mutex*)pVoid;
+
+    // setup zeromq
+    zmq::context_t context(1);
+    zmq::socket_t socket(context, ZMQ_REP);
+    socket.bind("tcp://*:5555");
+ 
+    while (received_signal == 0)
+    {
+        Timing::HRTimeStamp start = Timing::hrNow();
+        const int hzMS = (1.0f / (float)threadHz) * 1000;
+        
+        // idle work
+
+        // zmq work
+        {
+            zmq::message_t request;
+            char buffer[1024];
+            int len = 0;
+            //  Wait for next request from client
+            if (socket.recv(&request))
+            {
+                len = std::min(1023, (int)request.size());
+                memcpy(buffer, request.data(), len);
+                buffer[len] = '\0';
+            }
+            else
+            {
+                buffer[0] = '\0';
+            }
+            pMutex->lock();
+            std::cout << "Received \"" << buffer << "\"" << std::endl;
+            pMutex->unlock();
+
+            //  Send reply back to client
+            zmq::message_t reply(len);
+            memcpy((void *)reply.data(), buffer, len);
+            socket.send(reply);
+        }
+
+        int elapsed = Timing::elapsedinMS(start);
+        unsigned int sleepAmt = hzMS - elapsed;
+        if (sleepAmt > 0)
+        {
+            pMutex->lock();
+            std::cout << "RunThread sleeping: " << sleepAmt << "us\n";
+            pMutex->unlock();
+            s_sleep(sleepAmt);
+        }
+        else
+        {
+            char ctimestr[26];
+            pMutex->lock();
+            std::cout << "RunThread: " << Timing::sysNow(ctimestr);
+            pMutex->unlock();
+        }
+    }
+    
+    pMutex->lock();
+    std::cout << "RunThread: exiting\n";
+    pMutex->unlock();
+
+    return NULL;
+}
+
+void LaunchThread(std::mutex* pMutex)
+{
+#if 0
+    std::thread thread(std::bind(RunThread, pMutex));
+#else
+    server_task* st = new server_task;
+    std::thread thread(std::bind(&server_task::run, st));
+#endif
+
+    // spin it off
+    thread.detach();
+ 
+    pMutex->lock();
+    std::cout << "Exiting LaunchThread\n";
+    pMutex->unlock();
+}
+
 }; // namespace unnamed
 
 int main(int argc, const char * argv[])
 {
+    srandom((unsigned int)time(NULL));
     std::mutex mutex;
     Timing::HRTimeStamp start;
 
@@ -292,27 +299,29 @@ int main(int argc, const char * argv[])
     struct mg_server* webserver = mg_create_server(NULL, ev_handler);
     mg_set_option(webserver, "listening_port", "8080");
     
-    // create thread stuff
+    // create "2nd" thread "stuff"
     LaunchThread(&mutex);
     
     while (received_signal == 0)
     {
         Timing::HRTimeStamp start = Timing::hrNow();
-        const float hzUS = (1.0f / (float)mainHz) * 1000.0f * 1000.0f;
-
+        const int hzMS = (1.0f / (float)mainHz) * 1000;
+        
         // main work
         {
-            mg_poll_server(webserver, 1000);
+            // give mongoose half our frame time for polling -- select() blocks this duration
+            const int pollMS = (hzMS * 0.50f);
+            mg_poll_server(webserver, pollMS);
         }
         
-        float elapsed = Timing::elapsedinUS(start);
-        if (elapsed < hzUS)
+        int elapsed = Timing::elapsedinMS(start);
+        unsigned int sleepAmt = hzMS - elapsed;
+        if (sleepAmt > 0)
         {
-            int sleepAmt = static_cast<int>(hzUS - elapsed);
             mutex.lock();
-            std::cout << "MainThread sleeping: " << sleepAmt << "us\n";
+            std::cout << "MainThread sleeping: " << sleepAmt << "ms\n";
             mutex.unlock();
-            usleep(sleepAmt);
+            s_sleep(sleepAmt);
         }
         else
         {
